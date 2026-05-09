@@ -1,12 +1,5 @@
 <?php
 
-use App\Http\Controllers\Admin\AdminCategoryController;
-use App\Http\Controllers\Admin\AdminDashboardController;
-use App\Http\Controllers\Admin\AdminInventoryController;
-use App\Http\Controllers\Admin\AdminOrderController;
-use App\Http\Controllers\Admin\AdminProductController;
-use App\Http\Controllers\Admin\AdminSettingController;
-use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\SeoController;
@@ -28,18 +21,3 @@ Route::get('/order-success/{order:order_number}', [CheckoutController::class, 's
 
 Route::get('/robots.txt', [SeoController::class, 'robots'])->name('seo.robots');
 Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap');
-
-Route::get('/admin/login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/admin/login', [AuthController::class, 'login'])->name('admin.login');
-Route::post('/admin/logout', [AuthController::class, 'logout'])->middleware('auth')->name('admin.logout');
-
-Route::middleware('auth')->prefix('admin')->name('admin.')->group(function (): void {
-    Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
-    Route::resource('orders', AdminOrderController::class)->only(['index', 'show', 'update']);
-    Route::resource('products', AdminProductController::class)->except(['show']);
-    Route::resource('categories', AdminCategoryController::class)->except(['show']);
-    Route::get('inventory', [AdminInventoryController::class, 'index'])->name('inventory.index');
-    Route::patch('inventory/{variant}', [AdminInventoryController::class, 'update'])->name('inventory.update');
-    Route::get('settings', [AdminSettingController::class, 'edit'])->name('settings.edit');
-    Route::patch('settings', [AdminSettingController::class, 'update'])->name('settings.update');
-});

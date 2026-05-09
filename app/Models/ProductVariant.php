@@ -22,6 +22,8 @@ class ProductVariant extends Model
     {
         return [
             'price' => 'decimal:2',
+            'stock_quantity' => 'integer',
+            'low_stock_threshold' => 'integer',
             'is_active' => 'boolean',
         ];
     }

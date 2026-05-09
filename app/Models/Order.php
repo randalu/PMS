@@ -41,4 +41,9 @@ class Order extends Model
     {
         return $this->hasMany(OrderItem::class);
     }
+
+    public function movements(): HasMany
+    {
+        return $this->hasMany(InventoryMovement::class);
+    }
 }
