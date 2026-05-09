@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 class AdminSettingController extends Controller
@@ -24,10 +25,18 @@ class AdminSettingController extends Controller
             'admin_email' => ['required', 'email', 'max:160'],
             'site_url' => ['required', 'url', 'max:200'],
             'currency' => ['required', 'string', 'max:10'],
+            'new_admin_password' => ['nullable', 'string', 'min:10', 'confirmed'],
         ]);
+
+        $password = $data['new_admin_password'] ?? null;
+        unset($data['new_admin_password']);
 
         foreach ($data as $key => $value) {
             Setting::query()->updateOrCreate(['key' => $key], ['value' => $value]);
+        }
+
+        if ($password) {
+            $request->user()->update(['password' => Hash::make($password)]);
         }
 
         return back()->with('status', 'Settings updated.');
