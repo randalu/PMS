@@ -7,6 +7,8 @@ use App\Services\OrderStatusService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -82,7 +84,20 @@ class OrdersTable
                 self::statusAction('confirm', 'confirmed', 'Confirm', 'success'),
                 self::statusAction('processing', 'processing', 'Processing', 'warning'),
                 self::statusAction('pack', 'packed', 'Packed', 'warning'),
-                self::statusAction('dispatch', 'dispatched', 'Dispatch', 'primary'),
+                self::statusAction('dispatch', 'dispatched', 'Dispatch', 'primary', [
+                    TextInput::make('courier_name')
+                        ->required()
+                        ->maxLength(120),
+                    TextInput::make('tracking_number')
+                        ->required()
+                        ->maxLength(120),
+                    Textarea::make('delivery_notes')
+                        ->rows(3)
+                        ->maxLength(1000)
+                        ->columnSpanFull(),
+                ])
+                    ->modalHeading('Dispatch order')
+                    ->modalSubmitActionLabel('Dispatch'),
                 self::statusAction('deliver', 'delivered', 'Delivered', 'success'),
                 self::statusAction('cancel', 'cancelled', 'Cancel', 'danger')
                     ->requiresConfirmation(),
@@ -94,15 +109,20 @@ class OrdersTable
             ->defaultSort('created_at', 'desc');
     }
 
-    private static function statusAction(string $name, string $status, string $label, string $color): Action
+    /**
+     * @param  array<int, mixed>  $schema
+     */
+    private static function statusAction(string $name, string $status, string $label, string $color, array $schema = []): Action
     {
         return Action::make($name)
             ->label($label)
             ->color($color)
+            ->schema($schema)
             ->visible(fn (Order $record): bool => $record->canTransitionTo($status) && $record->status !== $status)
-            ->action(function (Order $record) use ($status, $label): void {
+            ->action(function (Order $record, array $data) use ($status, $label): void {
                 try {
                     app(OrderStatusService::class)->update($record, [
+                        ...$data,
                         'status' => $status,
                     ], auth()->id());
 
