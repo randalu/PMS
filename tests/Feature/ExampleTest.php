@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\OrderStatusService;
+use App\Services\SmsTestService;
 use App\Support\SriLankanPhone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -274,6 +275,27 @@ class ExampleTest extends TestCase
         $this->assertSame($admin->id, $event->user_id);
         $this->assertSame('sms_sender_id', $event->metadata['key']);
         $this->assertArrayNotHasKey('value', $event->metadata);
+    }
+
+    public function test_admin_test_sms_is_sent_and_logged(): void
+    {
+        $this->seed();
+        $this->enableSms();
+        Http::fake(['*' => Http::response(['status' => 'ok'])]);
+
+        $admin = User::query()->firstOrFail();
+
+        $sent = app(SmsTestService::class)->send('0771234567', 'PMS SMS test message.', $admin->id);
+
+        $this->assertTrue($sent);
+        Http::assertSent(fn (Request $request): bool => $request['contact'] === '+94771234567'
+            && $request['message'] === 'PMS SMS test message.');
+        $this->assertDatabaseHas('event_logs', [
+            'type' => 'sms.test_sent',
+            'severity' => 'success',
+            'user_id' => $admin->id,
+            'customer_phone' => '0771234567',
+        ]);
     }
 
     public function test_admin_dashboard_requires_login(): void
