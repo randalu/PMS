@@ -66,12 +66,16 @@
                             $steps = \App\Models\Order::FULFILLMENT_STATUSES;
                             $currentStep = array_search($order->status, $steps, true);
                             $isCancelled = $order->status === 'cancelled';
+                            $statusTimestamps = $order->publicStatusTimestamps();
                         @endphp
                         <ol class="status-timeline {{ $isCancelled ? 'cancelled' : '' }}">
                             @foreach ($steps as $index => $step)
                                 <li class="{{ (! $isCancelled && $currentStep !== false && $index <= $currentStep) ? 'done' : '' }}">
                                     <span>{{ $index + 1 }}</span>
                                     <strong>{{ $step === 'new' ? 'Order received' : str($step)->headline() }}</strong>
+                                    @if (isset($statusTimestamps[$step]) && ! $isCancelled)
+                                        <small>{{ $statusTimestamps[$step]->format('M j, g:i A') }}</small>
+                                    @endif
                                 </li>
                             @endforeach
                         </ol>

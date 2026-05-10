@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 class Order extends Model
 {
@@ -59,6 +60,11 @@ class Order extends Model
         return $this->hasMany(InventoryMovement::class);
     }
 
+    public function events(): HasMany
+    {
+        return $this->hasMany(EventLog::class)->latest();
+    }
+
     public function canTransitionTo(string $status): bool
     {
         return $this->status === $status || in_array($status, self::ALLOWED_STATUS_TRANSITIONS[$this->status] ?? [], true);
@@ -67,5 +73,32 @@ class Order extends Model
     public function requiresTrackingForStatus(string $status): bool
     {
         return $status === 'dispatched';
+    }
+
+    /**
+     * @return array<string, Carbon>
+     */
+    public function publicStatusTimestamps(): array
+    {
+        $timestamps = ['new' => $this->created_at];
+        $events = $this->relationLoaded('events')
+            ? $this->events
+            : $this->events()->whereIn('type', ['order.placed', 'order.status_changed'])->get();
+
+        foreach ($events->sortBy('created_at') as $event) {
+            if ($event->type === 'order.placed') {
+                $timestamps['new'] = $event->created_at;
+            }
+
+            if ($event->type === 'order.status_changed' && is_array($event->metadata)) {
+                $status = $event->metadata['to'] ?? null;
+
+                if (is_string($status) && in_array($status, self::FULFILLMENT_STATUSES, true)) {
+                    $timestamps[$status] = $event->created_at;
+                }
+            }
+        }
+
+        return $timestamps;
     }
 }

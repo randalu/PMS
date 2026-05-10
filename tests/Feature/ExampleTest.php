@@ -206,6 +206,10 @@ class ExampleTest extends TestCase
 
         $visibleOrder = $this->placeOrder('Visible Customer', '0771234567');
         $this->placeOrder('Other Customer', '0779999999');
+        $admin = User::query()->firstOrFail();
+        app(OrderStatusService::class)->update($visibleOrder, [
+            'status' => 'confirmed',
+        ], $admin->id);
 
         $this->post(route('orders.status.send-otp'), ['phone' => '94771234567'])
             ->assertRedirect()
@@ -232,11 +236,30 @@ class ExampleTest extends TestCase
             ->assertOk()
             ->assertSee($visibleOrder->order_number)
             ->assertSee('Visible Customer')
+            ->assertSee('Order received')
+            ->assertSee('Confirmed')
             ->assertDontSee('Other Customer');
 
         $this->assertDatabaseHas('event_logs', ['type' => 'otp.requested', 'customer_phone' => '+94771234567']);
         $this->assertDatabaseHas('event_logs', ['type' => 'otp.verified', 'customer_phone' => '+94771234567']);
         $this->assertDatabaseHas('event_logs', ['type' => 'sms.sent', 'customer_phone' => '+94771234567']);
+    }
+
+    public function test_order_public_status_timestamps_are_built_from_events(): void
+    {
+        $this->seed();
+        $admin = User::query()->firstOrFail();
+        $order = $this->placeOrder('Timeline Customer', '0771212121');
+
+        app(OrderStatusService::class)->update($order, [
+            'status' => 'confirmed',
+        ], $admin->id);
+
+        $timestamps = $order->refresh()->load('events')->publicStatusTimestamps();
+
+        $this->assertArrayHasKey('new', $timestamps);
+        $this->assertArrayHasKey('confirmed', $timestamps);
+        $this->assertTrue($order->events()->where('type', 'order.status_changed')->exists());
     }
 
     public function test_expired_or_invalid_order_status_otp_is_rejected(): void

@@ -74,6 +74,32 @@ class OrderInfolist
                             ->placeholder('-')
                             ->columnSpanFull(),
                     ]),
+                Section::make('Order history')
+                    ->schema([
+                        RepeatableEntry::make('events')
+                            ->hiddenLabel()
+                            ->columns(4)
+                            ->schema([
+                                TextEntry::make('created_at')
+                                    ->dateTime()
+                                    ->label('When'),
+                                TextEntry::make('type')
+                                    ->badge(),
+                                TextEntry::make('severity')
+                                    ->badge()
+                                    ->color(fn (string $state): string => match ($state) {
+                                        'error' => 'danger',
+                                        'warning' => 'warning',
+                                        'success' => 'success',
+                                        default => 'info',
+                                    }),
+                                TextEntry::make('user.name')
+                                    ->label('User')
+                                    ->placeholder('-'),
+                                TextEntry::make('summary')
+                                    ->columnSpanFull(),
+                            ]),
+                    ]),
             ]);
     }
 }

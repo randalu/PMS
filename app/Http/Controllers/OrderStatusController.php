@@ -18,7 +18,10 @@ class OrderStatusController extends Controller
 
         if ($verifiedPhone) {
             $orders = Order::query()
-                ->with('items')
+                ->with([
+                    'items',
+                    'events' => fn ($query) => $query->whereIn('type', ['order.placed', 'order.status_changed']),
+                ])
                 ->latest()
                 ->limit(250)
                 ->get()
