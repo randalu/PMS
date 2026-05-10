@@ -1,0 +1,3 @@
+## 2024-10-27 - Global settings N+1 query overhead in Laravel applications
+**Learning:** Calling database-backed helper functions (like `$this->settings()`) globally across storefront page load methods without caching leads to significant N+1-style DB query bottlenecks, as each specific setting key triggers an individual database query, drastically slowing down response times on frequently accessed views.
+**Action:** Always wrap global, infrequently changing settings retrieved from the database with a cache layer using `Cache::rememberForever` and invalidate it aggressively on `saved` and `deleted` model events.
