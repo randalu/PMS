@@ -18,8 +18,10 @@ class SettingForm
                         TextInput::make('key')
                             ->required()
                             ->unique(ignoreRecord: true)
+                            ->helperText('SMS settings use keys that start with sms_. API secrets stay in .env.')
                             ->maxLength(255),
                         Textarea::make('value')
+                            ->helperText('For sms_enabled and sms_order_updates_enabled, use 1 for enabled and 0 for disabled.')
                             ->rows(4)
                             ->columnSpanFull(),
                     ]),

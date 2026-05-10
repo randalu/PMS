@@ -7,7 +7,9 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class SettingsTable
 {
@@ -30,7 +32,9 @@ class SettingsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                Filter::make('sms')
+                    ->label('SMS settings')
+                    ->query(fn (Builder $query): Builder => $query->where('key', 'like', 'sms_%')),
             ])
             ->recordActions([
                 ViewAction::make(),

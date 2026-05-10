@@ -2,11 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\Settings\SettingResource;
 use App\Models\Order;
 use App\Models\ProductVariant;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\OrderStatusService;
+use App\Support\SriLankanPhone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -112,6 +119,116 @@ class ExampleTest extends TestCase
         $this->assertSame(1, $order->movements()->count());
     }
 
+    public function test_customer_can_verify_phone_by_sms_otp_and_view_matching_orders(): void
+    {
+        $this->seed();
+        $this->enableSms();
+        Http::fake(['*' => Http::response(['status' => 'ok'])]);
+
+        $visibleOrder = $this->placeOrder('Visible Customer', '0771234567');
+        $this->placeOrder('Other Customer', '0779999999');
+
+        $this->post(route('orders.status.send-otp'), ['phone' => '94771234567'])
+            ->assertRedirect()
+            ->assertSessionHas('otp_phone', '+94771234567');
+
+        $sentOtp = null;
+        Http::assertSent(function (Request $request) use (&$sentOtp): bool {
+            preg_match('/\b(\d{6})\b/', (string) $request['message'], $matches);
+            $sentOtp = $matches[1] ?? null;
+
+            return $request->url() === 'https://smslenz.lk/api/send-sms'
+                && $request['user_id'] === '1557'
+                && $request['sender_id'] === 'SMSlenzDEMO'
+                && $request['contact'] === '+94771234567'
+                && $sentOtp !== null;
+        });
+
+        $this->post(route('orders.status.verify'), [
+            'phone' => '0771234567',
+            'otp' => $sentOtp,
+        ])->assertRedirect(route('orders.status'));
+
+        $this->get(route('orders.status'))
+            ->assertOk()
+            ->assertSee($visibleOrder->order_number)
+            ->assertSee('Visible Customer')
+            ->assertDontSee('Other Customer');
+    }
+
+    public function test_expired_or_invalid_order_status_otp_is_rejected(): void
+    {
+        $this->seed();
+        $this->enableSms();
+        Http::fake(['*' => Http::response(['status' => 'ok'])]);
+
+        $this->placeOrder('OTP Customer', '0771234567');
+        $this->post(route('orders.status.send-otp'), ['phone' => '0771234567']);
+
+        Cache::flush();
+
+        $this->post(route('orders.status.verify'), [
+            'phone' => '0771234567',
+            'otp' => '123456',
+        ])->assertSessionHasErrors('otp');
+    }
+
+    public function test_order_status_otp_requests_are_rate_limited(): void
+    {
+        $this->seed();
+        $this->enableSms();
+        Http::fake(['*' => Http::response(['status' => 'ok'])]);
+
+        $this->placeOrder('Limited Customer', '0771234567');
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->post(route('orders.status.send-otp'), ['phone' => '0771234567'])->assertSessionHasNoErrors();
+        }
+
+        $this->post(route('orders.status.send-otp'), ['phone' => '0771234567'])
+            ->assertSessionHasErrors('phone');
+    }
+
+    public function test_sri_lankan_phone_numbers_are_normalized_for_sms(): void
+    {
+        $this->assertSame('+94771234567', SriLankanPhone::normalize('0771234567'));
+        $this->assertSame('+94771234567', SriLankanPhone::normalize('94771234567'));
+        $this->assertSame('+94771234567', SriLankanPhone::normalize('+94 77 123 4567'));
+    }
+
+    public function test_order_status_update_sends_customer_sms_when_enabled(): void
+    {
+        $this->seed();
+        $this->enableSms();
+        Http::fake(['*' => Http::response(['status' => 'ok'])]);
+
+        $admin = User::query()->firstOrFail();
+        $order = $this->placeOrder('SMS Customer', '0771234567');
+
+        app(OrderStatusService::class)->update($order, [
+            'status' => 'confirmed',
+            'payment_status' => 'cod_pending',
+            'delivery_fee' => 350,
+        ], $admin->id);
+
+        Http::assertSent(fn (Request $request): bool => $request['contact'] === '+94771234567'
+            && str_contains((string) $request['message'], $order->order_number)
+            && str_contains((string) $request['message'], 'Confirmed'));
+    }
+
+    public function test_sms_settings_are_limited_to_super_admins(): void
+    {
+        $this->seed();
+        $admin = User::query()->firstOrFail();
+        $staff = User::factory()->create(['role' => User::ROLE_STAFF]);
+
+        $this->actingAs($admin);
+        $this->assertTrue(SettingResource::canViewAny());
+
+        $this->actingAs($staff);
+        $this->assertFalse(SettingResource::canViewAny());
+    }
+
     public function test_admin_dashboard_requires_login(): void
     {
         $this->get('/admin')->assertRedirect('/admin/login');
@@ -125,5 +242,35 @@ class ExampleTest extends TestCase
         $this->actingAs($admin)
             ->get('/admin')
             ->assertRedirect('/admin/multi-factor-authentication/set-up');
+    }
+
+    private function enableSms(): void
+    {
+        RateLimiter::clear('order-otp-phone:+94771234567');
+        RateLimiter::clear('order-otp-ip:127.0.0.1');
+
+        config()->set('services.smslenz.enabled', true);
+        config()->set('services.smslenz.base_url', 'https://smslenz.lk/api');
+        config()->set('services.smslenz.user_id', '1557');
+        config()->set('services.smslenz.api_key', 'testing-key');
+        config()->set('services.smslenz.sender_id', 'SMSlenzDEMO');
+
+        Setting::query()->updateOrCreate(['key' => 'sms_enabled'], ['value' => '1']);
+        Setting::query()->updateOrCreate(['key' => 'sms_order_updates_enabled'], ['value' => '1']);
+        Setting::query()->updateOrCreate(['key' => 'sms_sender_id'], ['value' => 'SMSlenzDEMO']);
+    }
+
+    private function placeOrder(string $name, string $phone): Order
+    {
+        $variant = ProductVariant::query()->firstOrFail();
+
+        $this->post('/cart', ['variant_id' => $variant->id, 'quantity' => 1]);
+        $this->post('/checkout', [
+            'customer_name' => $name,
+            'customer_phone' => $phone,
+            'delivery_address' => 'Katunayake',
+        ]);
+
+        return Order::query()->where('customer_phone', $phone)->latest()->firstOrFail();
     }
 }

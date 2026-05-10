@@ -14,8 +14,9 @@ class OrderStatusService
      */
     public function update(Order $order, array $data, ?int $userId = null): Order
     {
-        return DB::transaction(function () use ($order, $data, $userId): Order {
+        $result = DB::transaction(function () use ($order, $data, $userId): array {
             $order = Order::query()->lockForUpdate()->findOrFail($order->id);
+            $previousStatus = $order->status;
             $confirming = ($data['status'] ?? $order->status) === 'confirmed' && $order->confirmed_at === null;
 
             if ($confirming) {
@@ -54,7 +55,19 @@ class OrderStatusService
 
             $order->update($data);
 
-            return $order->refresh();
+            return [
+                'order' => $order->refresh(),
+                'previous_status' => $previousStatus,
+            ];
         });
+
+        /** @var Order $updatedOrder */
+        $updatedOrder = $result['order'];
+
+        if (($result['previous_status'] ?? null) !== $updatedOrder->status) {
+            app(OrderSmsNotifier::class)->sendStatusUpdate($updatedOrder);
+        }
+
+        return $updatedOrder;
     }
 }

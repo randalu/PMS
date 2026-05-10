@@ -17,6 +17,7 @@
         </a>
         <nav class="nav-links">
             <a href="{{ route('home') }}">Products</a>
+            <a href="{{ route('orders.status') }}">Order status</a>
             <a href="{{ route('home') }}#contact">Contact</a>
             <a href="{{ route('cart.show') }}">Cart ({{ count(session('cart', [])) }})</a>
             <a class="btn green" href="https://wa.me/{{ $settings['whatsapp_number'] ?? '94776474542' }}">WhatsApp</a>

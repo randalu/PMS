@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Order;
-use App\Models\Product;
 use App\Models\ProductVariant;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -18,14 +17,23 @@ class DashboardStats extends StatsOverviewWidget
             Stat::make('New orders', Order::query()->where('status', 'new')->count())
                 ->description('Waiting for confirmation')
                 ->color('info'),
-            Stat::make('Pending delivery', Order::query()->whereIn('status', ['confirmed', 'processing', 'packed', 'dispatched'])->count())
-                ->description('Confirmed through dispatched')
+            Stat::make('Active fulfillment', Order::query()->whereIn('status', ['confirmed', 'processing', 'packed'])->count())
+                ->description('Confirmed through packed')
                 ->color('warning'),
+            Stat::make('Dispatched today', Order::query()->where('status', 'dispatched')->whereDate('updated_at', today())->count())
+                ->description('Updated to dispatched today')
+                ->color('primary'),
+            Stat::make('Delivered today', Order::query()->where('status', 'delivered')->whereDate('updated_at', today())->count())
+                ->description('Completed today')
+                ->color('success'),
+            Stat::make('Stale new orders', Order::query()->where('status', 'new')->where('created_at', '<=', now()->subDay())->count())
+                ->description('Older than 24 hours')
+                ->color('danger'),
             Stat::make('Low stock', ProductVariant::query()->whereColumn('stock_quantity', '<=', 'low_stock_threshold')->count())
                 ->description('Variants at threshold')
                 ->color('danger'),
-            Stat::make('Products', Product::query()->count())
-                ->description(Product::query()->where('is_active', true)->count().' active')
+            Stat::make('Today order value', 'LKR '.number_format((float) Order::query()->whereDate('created_at', today())->sum('total'), 2))
+                ->description('Orders placed today')
                 ->color('success'),
         ];
     }

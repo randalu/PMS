@@ -3,11 +3,15 @@
 namespace App\Filament\Resources\Orders\Tables;
 
 use App\Models\Order;
+use App\Services\OrderStatusService;
+use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use RuntimeException;
 
 class OrdersTable
 {
@@ -16,7 +20,8 @@ class OrdersTable
         return $table
             ->columns([
                 TextColumn::make('order_number')
-                    ->searchable(),
+                    ->searchable()
+                    ->description(fn (Order $record): string => $record->created_at->diffForHumans()),
                 TextColumn::make('customer_name')
                     ->searchable(),
                 TextColumn::make('customer_phone')
@@ -74,10 +79,44 @@ class OrdersTable
                     ]),
             ])
             ->recordActions([
+                self::statusAction('confirm', 'confirmed', 'Confirm', 'success'),
+                self::statusAction('processing', 'processing', 'Processing', 'warning'),
+                self::statusAction('pack', 'packed', 'Packed', 'warning'),
+                self::statusAction('dispatch', 'dispatched', 'Dispatch', 'primary'),
+                self::statusAction('deliver', 'delivered', 'Delivered', 'success'),
+                self::statusAction('cancel', 'cancelled', 'Cancel', 'danger')
+                    ->requiresConfirmation(),
                 ViewAction::make(),
                 EditAction::make(),
             ])
             ->toolbarActions([])
+            ->poll('60s')
             ->defaultSort('created_at', 'desc');
+    }
+
+    private static function statusAction(string $name, string $status, string $label, string $color): Action
+    {
+        return Action::make($name)
+            ->label($label)
+            ->color($color)
+            ->visible(fn (Order $record): bool => $record->status !== $status)
+            ->action(function (Order $record) use ($status, $label): void {
+                try {
+                    app(OrderStatusService::class)->update($record, [
+                        'status' => $status,
+                    ], auth()->id());
+
+                    Notification::make()
+                        ->success()
+                        ->title("Order marked {$label}")
+                        ->send();
+                } catch (RuntimeException $exception) {
+                    Notification::make()
+                        ->danger()
+                        ->title('Order not updated')
+                        ->body($exception->getMessage())
+                        ->send();
+                }
+            });
     }
 }
