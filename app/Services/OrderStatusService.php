@@ -65,6 +65,19 @@ class OrderStatusService
         $updatedOrder = $result['order'];
 
         if (($result['previous_status'] ?? null) !== $updatedOrder->status) {
+            app(EventLogger::class)->record(
+                type: 'order.status_changed',
+                summary: "Order {$updatedOrder->order_number} changed from {$result['previous_status']} to {$updatedOrder->status}",
+                subject: $updatedOrder,
+                order: $updatedOrder,
+                userId: $userId,
+                customerPhone: $updatedOrder->customer_phone,
+                metadata: [
+                    'from' => $result['previous_status'],
+                    'to' => $updatedOrder->status,
+                ],
+            );
+
             app(OrderSmsNotifier::class)->sendStatusUpdate($updatedOrder);
         }
 

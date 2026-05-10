@@ -18,6 +18,13 @@ class SmsService
     public function send(string $phone, string $message): bool
     {
         if (! $this->isEnabled()) {
+            app(EventLogger::class)->record(
+                type: 'sms.skipped',
+                summary: 'SMS skipped because SMS is disabled',
+                severity: 'warning',
+                customerPhone: $phone,
+            );
+
             Log::info('SMS skipped because SMS is disabled.', ['phone' => $phone]);
 
             return false;
@@ -34,6 +41,13 @@ class SmsService
         $senderId = Setting::getValue('sms_sender_id', (string) config('services.smslenz.sender_id'));
 
         if (! $userId || ! $apiKey || ! $senderId) {
+            app(EventLogger::class)->record(
+                type: 'sms.failed',
+                summary: 'SMSlenz credentials are not configured',
+                severity: 'error',
+                customerPhone: $contact,
+            );
+
             throw new RuntimeException('SMSlenz credentials are not configured.');
         }
 
@@ -46,6 +60,17 @@ class SmsService
         ]);
 
         if ($response->failed()) {
+            app(EventLogger::class)->record(
+                type: 'sms.failed',
+                summary: "SMSlenz send failed with HTTP {$response->status()}",
+                severity: 'error',
+                customerPhone: $contact,
+                metadata: [
+                    'status' => $response->status(),
+                    'body' => str($response->body())->limit(500)->toString(),
+                ],
+            );
+
             Log::warning('SMSlenz send failed.', [
                 'phone' => $contact,
                 'status' => $response->status(),
@@ -54,6 +79,16 @@ class SmsService
 
             return false;
         }
+
+        app(EventLogger::class)->record(
+            type: 'sms.sent',
+            summary: 'SMS sent through SMSlenz',
+            customerPhone: $contact,
+            metadata: [
+                'status' => $response->status(),
+                'sender_id' => $senderId,
+            ],
+        );
 
         return true;
     }

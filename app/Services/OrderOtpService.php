@@ -22,6 +22,14 @@ class OrderOtpService
         $this->ensureRateLimit($normalized, $ip);
 
         if (! $this->hasOrdersForPhone($normalized)) {
+            app(EventLogger::class)->record(
+                type: 'otp.requested_no_orders',
+                summary: 'Order status OTP requested for phone with no recent orders',
+                severity: 'warning',
+                customerPhone: $normalized,
+                ipAddress: $ip,
+            );
+
             return $normalized;
         }
 
@@ -34,6 +42,13 @@ class OrderOtpService
             ['{otp}' => $otp],
         ));
 
+        app(EventLogger::class)->record(
+            type: 'otp.requested',
+            summary: 'Order status OTP sent',
+            customerPhone: $normalized,
+            ipAddress: $ip,
+        );
+
         return $normalized;
     }
 
@@ -43,12 +58,25 @@ class OrderOtpService
         $hash = Cache::get($this->cacheKey($normalized));
 
         if (! $hash || ! Hash::check($otp, $hash)) {
+            app(EventLogger::class)->record(
+                type: 'otp.failed',
+                summary: 'Order status OTP verification failed',
+                severity: 'warning',
+                customerPhone: $normalized,
+            );
+
             throw ValidationException::withMessages([
                 'otp' => 'The OTP is invalid or has expired.',
             ]);
         }
 
         Cache::forget($this->cacheKey($normalized));
+
+        app(EventLogger::class)->record(
+            type: 'otp.verified',
+            summary: 'Order status OTP verified',
+            customerPhone: $normalized,
+        );
 
         return $normalized;
     }
@@ -70,6 +98,14 @@ class OrderOtpService
     {
         foreach (["order-otp-phone:{$phone}", "order-otp-ip:{$ip}"] as $key) {
             if (RateLimiter::tooManyAttempts($key, 3)) {
+                app(EventLogger::class)->record(
+                    type: 'otp.rate_limited',
+                    summary: 'Order status OTP request rate limited',
+                    severity: 'warning',
+                    customerPhone: $phone,
+                    ipAddress: $ip,
+                );
+
                 throw ValidationException::withMessages([
                     'phone' => 'Too many OTP requests. Please try again later.',
                 ]);

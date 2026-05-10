@@ -13,7 +13,7 @@ class InventoryAdjustmentService
      */
     public function updateVariant(ProductVariant $variant, array $data, ?int $userId = null, ?string $note = null): ProductVariant
     {
-        return DB::transaction(function () use ($variant, $data, $userId, $note): ProductVariant {
+        $result = DB::transaction(function () use ($variant, $data, $userId, $note): array {
             $variant = ProductVariant::query()->lockForUpdate()->findOrFail($variant->id);
             $oldStock = $variant->stock_quantity;
 
@@ -33,7 +33,31 @@ class InventoryAdjustmentService
                 ]);
             }
 
-            return $variant;
+            return [
+                'variant' => $variant,
+                'old_stock' => $oldStock,
+                'change' => $change,
+            ];
         });
+
+        /** @var ProductVariant $updatedVariant */
+        $updatedVariant = $result['variant'];
+
+        if ($result['change'] !== 0) {
+            app(EventLogger::class)->record(
+                type: 'inventory.adjusted',
+                summary: "Inventory adjusted for {$updatedVariant->product?->sku} {$updatedVariant->size}",
+                subject: $updatedVariant,
+                userId: $userId,
+                metadata: [
+                    'old_stock' => $result['old_stock'],
+                    'new_stock' => $updatedVariant->stock_quantity,
+                    'change' => $result['change'],
+                    'note' => $note,
+                ],
+            );
+        }
+
+        return $updatedVariant;
     }
 }

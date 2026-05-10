@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\Setting;
+use App\Services\EventLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -62,6 +63,19 @@ class CheckoutController extends Controller
 
             return $order;
         });
+
+        app(EventLogger::class)->record(
+            type: 'order.placed',
+            summary: "Order {$order->order_number} placed",
+            subject: $order,
+            order: $order,
+            customerPhone: $order->customer_phone,
+            ipAddress: $request->ip(),
+            metadata: [
+                'total' => (float) $order->total,
+                'items' => $order->items()->count(),
+            ],
+        );
 
         session()->forget('cart');
         $this->sendOrderEmail($order->load('items'));

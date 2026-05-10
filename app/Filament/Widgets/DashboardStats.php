@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\EventLog;
 use App\Models\Order;
 use App\Models\ProductVariant;
 use Filament\Widgets\StatsOverviewWidget;
@@ -35,6 +36,9 @@ class DashboardStats extends StatsOverviewWidget
             Stat::make('Today order value', 'LKR '.number_format((float) Order::query()->whereDate('created_at', today())->sum('total'), 2))
                 ->description('Orders placed today')
                 ->color('success'),
+            Stat::make('Events today', EventLog::query()->whereDate('created_at', today())->count())
+                ->description(EventLog::query()->whereDate('created_at', today())->whereIn('severity', ['warning', 'error'])->count().' need review')
+                ->color('info'),
         ];
     }
 }

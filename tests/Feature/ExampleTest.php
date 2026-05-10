@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Filament\Resources\Settings\SettingResource;
+use App\Models\EventLog;
 use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\Setting;
@@ -79,6 +80,10 @@ class ExampleTest extends TestCase
 
         $this->assertDatabaseHas('orders', ['customer_phone' => '0771234567', 'status' => 'new']);
         $this->assertDatabaseHas('order_items', ['product_variant_id' => $variant->id, 'quantity' => 2]);
+        $this->assertDatabaseHas('event_logs', [
+            'type' => 'order.placed',
+            'customer_phone' => '0771234567',
+        ]);
     }
 
     public function test_confirming_order_deducts_stock_once_and_logs_inventory(): void
@@ -117,6 +122,11 @@ class ExampleTest extends TestCase
             'reason' => 'order_confirmed',
         ]);
         $this->assertSame(1, $order->movements()->count());
+        $this->assertDatabaseHas('event_logs', [
+            'type' => 'order.status_changed',
+            'order_id' => $order->id,
+            'user_id' => $admin->id,
+        ]);
     }
 
     public function test_customer_can_verify_phone_by_sms_otp_and_view_matching_orders(): void
@@ -154,6 +164,10 @@ class ExampleTest extends TestCase
             ->assertSee($visibleOrder->order_number)
             ->assertSee('Visible Customer')
             ->assertDontSee('Other Customer');
+
+        $this->assertDatabaseHas('event_logs', ['type' => 'otp.requested', 'customer_phone' => '+94771234567']);
+        $this->assertDatabaseHas('event_logs', ['type' => 'otp.verified', 'customer_phone' => '+94771234567']);
+        $this->assertDatabaseHas('event_logs', ['type' => 'sms.sent', 'customer_phone' => '+94771234567']);
     }
 
     public function test_expired_or_invalid_order_status_otp_is_rejected(): void
@@ -171,6 +185,12 @@ class ExampleTest extends TestCase
             'phone' => '0771234567',
             'otp' => '123456',
         ])->assertSessionHasErrors('otp');
+
+        $this->assertDatabaseHas('event_logs', [
+            'type' => 'otp.failed',
+            'severity' => 'warning',
+            'customer_phone' => '+94771234567',
+        ]);
     }
 
     public function test_order_status_otp_requests_are_rate_limited(): void
@@ -187,6 +207,12 @@ class ExampleTest extends TestCase
 
         $this->post(route('orders.status.send-otp'), ['phone' => '0771234567'])
             ->assertSessionHasErrors('phone');
+
+        $this->assertDatabaseHas('event_logs', [
+            'type' => 'otp.rate_limited',
+            'severity' => 'warning',
+            'customer_phone' => '+94771234567',
+        ]);
     }
 
     public function test_sri_lankan_phone_numbers_are_normalized_for_sms(): void
@@ -214,6 +240,11 @@ class ExampleTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request['contact'] === '+94771234567'
             && str_contains((string) $request['message'], $order->order_number)
             && str_contains((string) $request['message'], 'Confirmed'));
+
+        $this->assertDatabaseHas('event_logs', [
+            'type' => 'sms.sent',
+            'customer_phone' => '+94771234567',
+        ]);
     }
 
     public function test_sms_settings_are_limited_to_super_admins(): void
@@ -227,6 +258,22 @@ class ExampleTest extends TestCase
 
         $this->actingAs($staff);
         $this->assertFalse(SettingResource::canViewAny());
+    }
+
+    public function test_settings_updates_are_logged_without_storing_secret_values(): void
+    {
+        $this->seed();
+        $admin = User::query()->firstOrFail();
+        $this->actingAs($admin);
+
+        Setting::query()->updateOrCreate(['key' => 'sms_sender_id'], ['value' => 'PeachTreeLK']);
+
+        $event = EventLog::query()->where('type', 'setting.updated')->latest()->firstOrFail();
+
+        $this->assertSame('Setting sms_sender_id updated', $event->summary);
+        $this->assertSame($admin->id, $event->user_id);
+        $this->assertSame('sms_sender_id', $event->metadata['key']);
+        $this->assertArrayNotHasKey('value', $event->metadata);
     }
 
     public function test_admin_dashboard_requires_login(): void
