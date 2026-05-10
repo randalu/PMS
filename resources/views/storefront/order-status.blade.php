@@ -15,8 +15,8 @@
                 <form method="post" action="{{ route('orders.status.send-otp') }}">
                     @csrf
                     <div class="field">
-                        <label>Phone number</label>
-                        <input name="phone" value="{{ old('phone', session('otp_phone')) }}" placeholder="0771234567" required>
+                        <label for="phone">Phone number</label>
+                        <input id="phone" name="phone" type="tel" autocomplete="tel" value="{{ old('phone', session('otp_phone')) }}" placeholder="0771234567" required>
                     </div>
                     <button class="primary" type="submit">Send OTP</button>
                 </form>
@@ -26,8 +26,8 @@
                         @csrf
                         <input type="hidden" name="phone" value="{{ session('otp_phone') }}">
                         <div class="field">
-                            <label>OTP</label>
-                            <input name="otp" inputmode="numeric" maxlength="6" placeholder="123456" required>
+                            <label for="otp">OTP</label>
+                            <input id="otp" name="otp" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="123456" required>
                         </div>
                         <button type="submit">Verify</button>
                     </form>
