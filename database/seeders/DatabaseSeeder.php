@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             'email' => env('ADMIN_EMAIL', 'admin@bedsheets.ptree.lk'),
         ], [
             'name' => env('ADMIN_NAME', 'PMS Admin'),
+            'role' => User::ROLE_SUPER_ADMIN,
             'password' => Hash::make(env('ADMIN_PASSWORD', 'ChangeMeNow!2026')),
         ]);
 

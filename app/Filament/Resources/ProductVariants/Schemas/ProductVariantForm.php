@@ -29,9 +29,13 @@ class ProductVariantForm
                             ->minValue(0)
                             ->default(0)
                             ->prefix('LKR'),
-                        TextInput::make('size')
+                        Select::make('size')
+                            ->options([
+                                '90 x 90' => '90 x 90',
+                                '90 x 100' => '90 x 100',
+                            ])
                             ->required()
-                            ->maxLength(80),
+                            ->native(false),
                         TextInput::make('color')
                             ->required()
                             ->maxLength(100)

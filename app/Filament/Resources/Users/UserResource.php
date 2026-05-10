@@ -15,6 +15,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class UserResource extends Resource
 {
@@ -25,6 +26,31 @@ class UserResource extends Resource
     protected static string|\UnitEnum|null $navigationGroup = 'System';
 
     protected static ?int $navigationSort = 10;
+
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->canManageUsers() ?? false;
+    }
 
     protected static ?string $recordTitleAttribute = 'name';
 

@@ -59,7 +59,10 @@ class StorefrontController extends Controller
     {
         return [
             'store_name' => Setting::getValue('store_name', 'Priyanthi Multi Stores'),
+            'store_phone' => Setting::getValue('store_phone', '+94776474542'),
             'whatsapp_number' => Setting::getValue('whatsapp_number', '94776474542'),
+            'store_address' => Setting::getValue('store_address', 'Priyanthi Multi Stores, Katunayake, Sri Lanka'),
+            'google_maps_embed_url' => Setting::getValue('google_maps_embed_url'),
             'currency' => Setting::getValue('currency', 'LKR'),
         ];
     }

@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Models\User;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -25,6 +27,10 @@ class UserForm
                             ->required()
                             ->unique(ignoreRecord: true)
                             ->maxLength(255),
+                        Select::make('role')
+                            ->options(User::ROLES)
+                            ->required()
+                            ->default(User::ROLE_STAFF),
                         DateTimePicker::make('email_verified_at'),
                         TextInput::make('password')
                             ->password()

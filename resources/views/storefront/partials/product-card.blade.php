@@ -10,6 +10,7 @@
         <span class="sku">{{ $product->sku }}</span>
         <h3><a href="{{ route('products.show', $product) }}">{{ $product->name }}</a></h3>
         <p class="muted">{{ $product->seo_description }}</p>
+        <p class="included-note small">Includes 2 matching pillow cases free.</p>
         <p class="muted">{{ $product->category->name }}</p>
         <div class="actions">
             <a class="btn primary" href="{{ route('products.show', $product) }}">Order Online</a>

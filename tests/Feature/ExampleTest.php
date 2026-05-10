@@ -24,6 +24,37 @@ class ExampleTest extends TestCase
             ->assertSee('EC-NEM-01');
     }
 
+    public function test_seeded_products_have_only_two_active_bedsheet_sizes(): void
+    {
+        $this->seed();
+
+        $variantSizes = ProductVariant::query()
+            ->where('is_active', true)
+            ->orderBy('product_id')
+            ->orderByRaw("CASE size WHEN '90 x 90' THEN 1 WHEN '90 x 100' THEN 2 ELSE 99 END")
+            ->select('product_id', 'size')
+            ->get()
+            ->groupBy('product_id')
+            ->map(fn ($variants) => $variants->pluck('size')->values()->all());
+
+        $this->assertNotEmpty($variantSizes);
+
+        foreach ($variantSizes as $sizes) {
+            $this->assertSame(['90 x 90', '90 x 100'], $sizes);
+        }
+    }
+
+    public function test_product_size_selection_defaults_to_select_size(): void
+    {
+        $this->seed();
+        $product = ProductVariant::query()->firstOrFail()->product;
+
+        $this->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSee('Select size')
+            ->assertSee('Matching pillow cases (2 pcs) are free with every set.');
+    }
+
     public function test_customer_can_place_online_order(): void
     {
         $this->seed();
@@ -86,11 +117,13 @@ class ExampleTest extends TestCase
         $this->get('/admin')->assertRedirect('/admin/login');
     }
 
-    public function test_admin_can_access_dashboard(): void
+    public function test_admin_is_required_to_set_up_two_factor_authentication(): void
     {
         $this->seed();
         $admin = User::query()->firstOrFail();
 
-        $this->actingAs($admin)->get('/admin')->assertOk()->assertSee('Dashboard');
+        $this->actingAs($admin)
+            ->get('/admin')
+            ->assertRedirect('/admin/multi-factor-authentication/set-up');
     }
 }

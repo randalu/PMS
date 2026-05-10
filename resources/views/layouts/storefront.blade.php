@@ -17,6 +17,7 @@
         </a>
         <nav class="nav-links">
             <a href="{{ route('home') }}">Products</a>
+            <a href="{{ route('home') }}#contact">Contact</a>
             <a href="{{ route('cart.show') }}">Cart ({{ count(session('cart', [])) }})</a>
             <a class="btn green" href="https://wa.me/{{ $settings['whatsapp_number'] ?? '94776474542' }}">WhatsApp</a>
         </nav>
@@ -28,7 +29,16 @@
     @yield('content')
 </main>
 <footer class="footer">
-    <div class="container">Priyanthi Multi Stores - Bedsheets and pillowcases in Sri Lanka.</div>
+    <div class="container footer-grid">
+        <div>
+            <strong>{{ $settings['store_name'] ?? 'Priyanthi Multi Stores' }}</strong>
+            <span>Bedsheet sets with 2 matching pillowcases included.</span>
+        </div>
+        <div>
+            <a href="tel:{{ $settings['store_phone'] ?? '+94776474542' }}">{{ $settings['store_phone'] ?? '+94776474542' }}</a>
+            <a href="https://wa.me/{{ $settings['whatsapp_number'] ?? '94776474542' }}">WhatsApp</a>
+        </div>
+    </div>
 </footer>
 </body>
 </html>

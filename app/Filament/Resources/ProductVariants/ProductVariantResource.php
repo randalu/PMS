@@ -28,6 +28,11 @@ class ProductVariantResource extends Resource
 
     protected static ?int $navigationSort = 30;
 
+    public static function canViewAny(): bool
+    {
+        return auth()->check();
+    }
+
     protected static ?string $recordTitleAttribute = 'id';
 
     public static function form(Schema $schema): Schema

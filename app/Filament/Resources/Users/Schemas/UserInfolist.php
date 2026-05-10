@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Models\User;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 
@@ -14,6 +15,9 @@ class UserInfolist
                 TextEntry::make('name'),
                 TextEntry::make('email')
                     ->label('Email address'),
+                TextEntry::make('role')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => User::ROLES[$state] ?? $state),
                 TextEntry::make('email_verified_at')
                     ->dateTime()
                     ->placeholder('-'),

@@ -83,7 +83,11 @@ class ProductCatalogSeeder extends Seeder
                 'is_active' => true,
             ]);
 
-            foreach (['Single', 'Double', 'Queen', 'King'] as $size) {
+            $product->variants()
+                ->whereNotIn('size', ['90 x 90', '90 x 100'])
+                ->update(['is_active' => false]);
+
+            foreach (['90 x 90', '90 x 100'] as $size) {
                 $product->variants()->updateOrCreate([
                     'size' => $size,
                     'color' => 'As pictured',
@@ -101,6 +105,8 @@ class ProductCatalogSeeder extends Seeder
             'store_name' => 'Priyanthi Multi Stores',
             'store_phone' => '+94776474542',
             'whatsapp_number' => '94776474542',
+            'store_address' => 'Priyanthi Multi Stores, Katunayake, Sri Lanka',
+            'google_maps_embed_url' => 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3958.770553911933!2d79.87817187499869!3d7.1525068928518865!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ae2f11dde391c3b%3A0x18d0e58c6ffb9ba3!2sPriyanthi%20Multi%20Stores!5e0!3m2!1sen!2slk!4v1778339907048!5m2!1sen!2slk',
             'admin_email' => env('ADMIN_EMAIL', 'admin@bedsheets.ptree.lk'),
             'currency' => 'LKR',
         ];
