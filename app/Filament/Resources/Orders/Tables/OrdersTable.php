@@ -99,7 +99,7 @@ class OrdersTable
         return Action::make($name)
             ->label($label)
             ->color($color)
-            ->visible(fn (Order $record): bool => $record->status !== $status)
+            ->visible(fn (Order $record): bool => $record->canTransitionTo($status) && $record->status !== $status)
             ->action(function (Order $record) use ($status, $label): void {
                 try {
                     app(OrderStatusService::class)->update($record, [

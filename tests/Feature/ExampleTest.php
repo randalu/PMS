@@ -16,6 +16,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
+use RuntimeException;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -128,6 +129,73 @@ class ExampleTest extends TestCase
             'order_id' => $order->id,
             'user_id' => $admin->id,
         ]);
+    }
+
+    public function test_order_status_cannot_jump_ahead(): void
+    {
+        $this->seed();
+        $admin = User::query()->firstOrFail();
+        $order = $this->placeOrder('Jump Customer', '0772222222');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Order cannot move from new to delivered.');
+
+        app(OrderStatusService::class)->update($order, [
+            'status' => 'delivered',
+        ], $admin->id);
+    }
+
+    public function test_rejected_order_status_changes_are_logged(): void
+    {
+        $this->seed();
+        $admin = User::query()->firstOrFail();
+        $order = $this->placeOrder('Rejected Customer', '0773333333');
+
+        try {
+            app(OrderStatusService::class)->update($order, [
+                'status' => 'delivered',
+            ], $admin->id);
+        } catch (RuntimeException) {
+            //
+        }
+
+        $this->assertDatabaseHas('event_logs', [
+            'type' => 'order.status_rejected',
+            'severity' => 'warning',
+            'order_id' => $order->id,
+            'user_id' => $admin->id,
+        ]);
+    }
+
+    public function test_dispatch_requires_courier_and_tracking_number(): void
+    {
+        $this->seed();
+        $admin = User::query()->firstOrFail();
+        $order = $this->advanceOrderToPacked($this->placeOrder('Dispatch Customer', '0774444444'), $admin);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Courier name and tracking number are required before dispatching an order.');
+
+        app(OrderStatusService::class)->update($order, [
+            'status' => 'dispatched',
+        ], $admin->id);
+    }
+
+    public function test_dispatch_succeeds_with_courier_and_tracking_number(): void
+    {
+        $this->seed();
+        $admin = User::query()->firstOrFail();
+        $order = $this->advanceOrderToPacked($this->placeOrder('Tracked Customer', '0775555555'), $admin);
+
+        $updated = app(OrderStatusService::class)->update($order, [
+            'status' => 'dispatched',
+            'courier_name' => 'Domestic Courier',
+            'tracking_number' => 'TRK123',
+        ], $admin->id);
+
+        $this->assertSame('dispatched', $updated->status);
+        $this->assertSame('Domestic Courier', $updated->courier_name);
+        $this->assertSame('TRK123', $updated->tracking_number);
     }
 
     public function test_customer_can_verify_phone_by_sms_otp_and_view_matching_orders(): void
@@ -341,5 +409,16 @@ class ExampleTest extends TestCase
         ]);
 
         return Order::query()->where('customer_phone', $phone)->latest()->firstOrFail();
+    }
+
+    private function advanceOrderToPacked(Order $order, User $admin): Order
+    {
+        foreach (['confirmed', 'processing', 'packed'] as $status) {
+            $order = app(OrderStatusService::class)->update($order->refresh(), [
+                'status' => $status,
+            ], $admin->id);
+        }
+
+        return $order;
     }
 }

@@ -9,6 +9,18 @@ class Order extends Model
 {
     public const STATUSES = ['new', 'confirmed', 'processing', 'packed', 'dispatched', 'delivered', 'cancelled'];
 
+    public const FULFILLMENT_STATUSES = ['new', 'confirmed', 'processing', 'packed', 'dispatched', 'delivered'];
+
+    public const ALLOWED_STATUS_TRANSITIONS = [
+        'new' => ['confirmed', 'cancelled'],
+        'confirmed' => ['processing', 'cancelled'],
+        'processing' => ['packed', 'cancelled'],
+        'packed' => ['dispatched', 'cancelled'],
+        'dispatched' => ['delivered', 'cancelled'],
+        'delivered' => [],
+        'cancelled' => [],
+    ];
+
     protected $fillable = [
         'order_number',
         'customer_name',
@@ -45,5 +57,15 @@ class Order extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(InventoryMovement::class);
+    }
+
+    public function canTransitionTo(string $status): bool
+    {
+        return $this->status === $status || in_array($status, self::ALLOWED_STATUS_TRANSITIONS[$this->status] ?? [], true);
+    }
+
+    public function requiresTrackingForStatus(string $status): bool
+    {
+        return $status === 'dispatched';
     }
 }

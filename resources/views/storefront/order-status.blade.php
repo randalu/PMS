@@ -62,6 +62,24 @@
                             <span><strong>Tracking</strong>{{ $order->tracking_number ?: '-' }}</span>
                         </div>
 
+                        @php
+                            $steps = \App\Models\Order::FULFILLMENT_STATUSES;
+                            $currentStep = array_search($order->status, $steps, true);
+                            $isCancelled = $order->status === 'cancelled';
+                        @endphp
+                        <ol class="status-timeline {{ $isCancelled ? 'cancelled' : '' }}">
+                            @foreach ($steps as $index => $step)
+                                <li class="{{ (! $isCancelled && $currentStep !== false && $index <= $currentStep) ? 'done' : '' }}">
+                                    <span>{{ $index + 1 }}</span>
+                                    <strong>{{ $step === 'new' ? 'Order received' : str($step)->headline() }}</strong>
+                                </li>
+                            @endforeach
+                        </ol>
+
+                        @if ($isCancelled)
+                            <p class="errors">This order has been cancelled.</p>
+                        @endif
+
                         @if ($order->delivery_notes)
                             <p class="notice">{{ $order->delivery_notes }}</p>
                         @endif
