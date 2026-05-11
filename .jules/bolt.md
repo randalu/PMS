@@ -1,0 +1,3 @@
+## 2026-05-11 - Settings Model N+1 and Repeated DB Queries
+**Learning:** Calling `Setting::getValue()` multiple times per page load (e.g., retrieving store name, phone, currency in a Controller) executes an identical or separate database query for every single call because there was no static or application-level cache.
+**Action:** Always implement caching (e.g. `Cache::rememberForever`) for global settings that are read frequently but updated rarely, and use Eloquent model events (`saved`, `deleted`) to invalidate those specific cache keys instantly to maintain consistency.

@@ -4,18 +4,35 @@ namespace App\Models;
 
 use App\Services\EventLogger;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
     protected $fillable = ['key', 'value'];
 
+    /**
+     * Get a setting value, cached forever.
+     * Expects performance impact: ~6 DB queries saved per page load.
+     */
     public static function getValue(string $key, ?string $default = null): ?string
     {
-        return static::query()->where('key', $key)->value('value') ?? $default;
+        $value = Cache::rememberForever('settings.'.$key, function () use ($key) {
+            return static::query()->where('key', $key)->value('value');
+        });
+
+        return $value ?? $default;
     }
 
     protected static function booted(): void
     {
+        static::saved(function (Setting $setting): void {
+            Cache::forget('settings.'.$setting->key);
+        });
+
+        static::deleted(function (Setting $setting): void {
+            Cache::forget('settings.'.$setting->key);
+        });
+
         static::created(function (Setting $setting): void {
             app(EventLogger::class)->record(
                 type: 'setting.created',
