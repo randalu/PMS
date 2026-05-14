@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\EventLogger;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
@@ -11,11 +12,29 @@ class Setting extends Model
 
     public static function getValue(string $key, ?string $default = null): ?string
     {
-        return static::query()->where('key', $key)->value('value') ?? $default;
+        // ⚡ Bolt Optimization: Cache global settings indefinitely
+        // Impact: Eliminates a database query for each accessed setting on every request
+        // Measurement: Can be verified using Laravel Telescope or query logging
+        $value = Cache::rememberForever('settings.'.$key, function () use ($key) {
+            return static::query()->where('key', $key)->value('value');
+        });
+
+        // Evaluate the default fallback *outside* the closure so we don't cache default
+        // values when records don't exist.
+        return $value ?? $default;
     }
 
     protected static function booted(): void
     {
+        // ⚡ Bolt Optimization: Cache invalidation for settings
+        static::saved(function (Setting $setting): void {
+            Cache::forget('settings.'.$setting->key);
+        });
+
+        static::deleted(function (Setting $setting): void {
+            Cache::forget('settings.'.$setting->key);
+        });
+
         static::created(function (Setting $setting): void {
             app(EventLogger::class)->record(
                 type: 'setting.created',
