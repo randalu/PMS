@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\EventLogger;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
@@ -11,11 +12,26 @@ class Setting extends Model
 
     public static function getValue(string $key, ?string $default = null): ?string
     {
-        return static::query()->where('key', $key)->value('value') ?? $default;
+        // ⚡ Bolt: Cache settings to avoid repeated DB queries.
+        // We evaluate the default outside the cache closure so we don't cache fallback values
+        // when a setting record does not actually exist in the database.
+        $value = Cache::rememberForever("settings.{$key}", function () use ($key) {
+            return static::query()->where('key', $key)->value('value');
+        });
+
+        return $value ?? $default;
     }
 
     protected static function booted(): void
     {
+        static::saved(function (Setting $setting): void {
+            Cache::forget("settings.{$setting->key}");
+        });
+
+        static::deleted(function (Setting $setting): void {
+            Cache::forget("settings.{$setting->key}");
+        });
+
         static::created(function (Setting $setting): void {
             app(EventLogger::class)->record(
                 type: 'setting.created',
