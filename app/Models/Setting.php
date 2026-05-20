@@ -4,14 +4,23 @@ namespace App\Models;
 
 use App\Services\EventLogger;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
     protected $fillable = ['key', 'value'];
 
+    /**
+     * Get a setting value, using cache to prevent unnecessary database queries.
+     * ⚡ Bolt: Caching setting lookups reduces DB queries on every page load.
+     */
     public static function getValue(string $key, ?string $default = null): ?string
     {
-        return static::query()->where('key', $key)->value('value') ?? $default;
+        $value = Cache::rememberForever('settings.'.$key, function () use ($key) {
+            return static::query()->where('key', $key)->value('value');
+        });
+
+        return $value ?? $default;
     }
 
     protected static function booted(): void
@@ -37,6 +46,14 @@ class Setting extends Model
                     'changed' => array_keys($setting->getChanges()),
                 ],
             );
+        });
+
+        static::saved(function (Setting $setting): void {
+            Cache::forget('settings.'.$setting->key);
+        });
+
+        static::deleted(function (Setting $setting): void {
+            Cache::forget('settings.'.$setting->key);
         });
     }
 }
