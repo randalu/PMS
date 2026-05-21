@@ -1,0 +1,3 @@
+## 2026-05-21 - Settings DB Query Fallback Caching Anti-Pattern
+**Learning:** When caching database query results that have a default fallback, evaluating the fallback INSIDE the caching closure caches the default value itself as an actual value. This leads to issues where missing settings records are considered "found" and caching logic cannot distinguish between "record exists with default value" vs "record does not exist".
+**Action:** Always evaluate default fallbacks OUTSIDE the caching closure (e.g., `return $value ?? $default`) to ensure only actual database values are stored in the cache.
