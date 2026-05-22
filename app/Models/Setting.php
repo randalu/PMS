@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\EventLogger;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
@@ -11,11 +12,32 @@ class Setting extends Model
 
     public static function getValue(string $key, ?string $default = null): ?string
     {
-        return static::query()->where('key', $key)->value('value') ?? $default;
+        // ⚡ Bolt Performance Optimization
+        // 💡 What: Caches the database query for fetching application settings.
+        // 🎯 Why: Settings are read frequently across the app but updated rarely.
+        // 📊 Impact: Eliminates a database query for each retrieved setting.
+        // 🔬 Measurement: Verified via reduced DB query count in Laravel Telescope/Debugbar.
+        $value = Cache::rememberForever('settings.'.$key, function () use ($key) {
+            return static::query()->where('key', $key)->value('value');
+        });
+
+        return $value ?? $default;
     }
 
     protected static function booted(): void
     {
+        static::saved(function (Setting $setting): void {
+            Cache::forget('settings.'.$setting->key);
+
+            if ($setting->isDirty('key') && $setting->getOriginal('key')) {
+                Cache::forget('settings.'.$setting->getOriginal('key'));
+            }
+        });
+
+        static::deleted(function (Setting $setting): void {
+            Cache::forget('settings.'.$setting->key);
+        });
+
         static::created(function (Setting $setting): void {
             app(EventLogger::class)->record(
                 type: 'setting.created',
