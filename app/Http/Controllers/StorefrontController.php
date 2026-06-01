@@ -37,9 +37,16 @@ class StorefrontController extends Controller
     {
         abort_unless($category->is_active, 404);
 
+        $products = $category->products()->with('activeVariants')->where('is_active', true)->orderBy('sort_order')->get();
+
+        // ⚡ Bolt: Prevent N+1 queries when accessing $product->category->name in the view
+        // Injects the already-loaded parent category into the children models
+        // Reduces query count from O(N) to O(1) for category relation
+        $products->each->setRelation('category', $category);
+
         return view('storefront.collection', [
             'category' => $category,
-            'products' => $category->products()->with('activeVariants')->where('is_active', true)->orderBy('sort_order')->get(),
+            'products' => $products,
             'categories' => Category::query()->where('is_active', true)->orderBy('sort_order')->get(),
             'settings' => $this->settings(),
         ]);
