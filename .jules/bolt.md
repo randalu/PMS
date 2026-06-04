@@ -1,3 +1,6 @@
 ## 2026-05-16 - Cache queries with defaults outside the cache closure
 **Learning:** When using `Cache::rememberForever` for database queries that return null but use a fallback default, evaluate the default *outside* the cache closure. If evaluated inside, the default value is cached, meaning it becomes stale if the underlying code updates the default value for the application, and it misrepresents the actual state in the database.
 **Action:** Always fetch the raw database value inside the cache closure. Apply the `?? $default` fallback on the return value of `Cache::rememberForever`.
+## 2026-05-17 - Prevent N+1 queries by injecting loaded parent relations
+**Learning:** When retrieving children via a relationship constraint (e.g., `$category->products()`), the retrieved child models do not automatically have the parent model loaded, causing N+1 queries if a view references the parent (e.g., `$product->category->name`).
+**Action:** Instead of eager loading the parent again using `with('category')`, manually inject the existing parent model into the retrieved children using `$products->each->setRelation('category', $category);`. This satisfies the relation and eliminates redundant queries completely.
