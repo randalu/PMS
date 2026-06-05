@@ -39,7 +39,8 @@ class StorefrontController extends Controller
 
         return view('storefront.collection', [
             'category' => $category,
-            'products' => $category->products()->with('activeVariants')->where('is_active', true)->orderBy('sort_order')->get(),
+            // ⚡ Bolt: Inject the loaded category into products to prevent N+1 query on category name in product card
+            'products' => $category->products()->with('activeVariants')->where('is_active', true)->orderBy('sort_order')->get()->each->setRelation('category', $category),
             'categories' => Category::query()->where('is_active', true)->orderBy('sort_order')->get(),
             'settings' => $this->settings(),
         ]);
