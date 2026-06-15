@@ -12,8 +12,10 @@ class StorefrontController extends Controller
 {
     public function index(Request $request): View
     {
+        $categories = Category::query()->where('is_active', true)->orderBy('sort_order')->get();
+
         $query = Product::query()
-            ->with(['category', 'activeVariants'])
+            ->with(['activeVariants'])
             ->where('is_active', true)
             ->whereHas('category', fn ($query) => $query->where('is_active', true));
 
@@ -25,9 +27,17 @@ class StorefrontController extends Controller
             });
         }
 
+        $products = $query->orderBy('sort_order')->get();
+        // ⚡ Bolt: Prevent duplicate category queries by injecting the already loaded
+        // categories from the header into the products. Keying the categories avoids O(N*M) lookups.
+        $keyedCategories = $categories->keyBy('id');
+        $products->each(function ($product) use ($keyedCategories) {
+            $product->setRelation('category', $keyedCategories->get($product->category_id));
+        });
+
         return view('storefront.index', [
-            'categories' => Category::query()->where('is_active', true)->orderBy('sort_order')->get(),
-            'products' => $query->orderBy('sort_order')->get(),
+            'categories' => $categories,
+            'products' => $products,
             'search' => $search ?? '',
             'settings' => $this->settings(),
         ]);
