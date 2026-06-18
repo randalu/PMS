@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\InventoryMovement;
 use App\Models\Order;
+use App\Models\ProductVariant;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -26,9 +27,18 @@ class OrderStatusService
 
                 if ($confirming) {
                     $items = $order->items()->with('variant')->get();
+                    $variantIds = $items->pluck('product_variant_id')->unique();
+
+                    // ⚡ Bolt: Prevent N+1 queries when acquiring locks by batching
+                    // the query and doing an O(1) lookup in memory
+                    $lockedVariants = ProductVariant::query()
+                        ->whereIn('id', $variantIds)
+                        ->lockForUpdate()
+                        ->get()
+                        ->keyBy('id');
 
                     foreach ($items as $item) {
-                        $variant = $item->variant()->lockForUpdate()->first();
+                        $variant = $lockedVariants->get($item->product_variant_id);
 
                         if (! $variant || $variant->stock_quantity < $item->quantity) {
                             throw new RuntimeException("Not enough stock for {$item->sku} {$item->size} {$item->color}.");
@@ -36,9 +46,13 @@ class OrderStatusService
                     }
 
                     foreach ($items as $item) {
-                        $variant = $item->variant()->lockForUpdate()->firstOrFail();
+                        $variant = $lockedVariants->get($item->product_variant_id);
+                        if (! $variant) {
+                            throw new RuntimeException("Variant not found for {$item->sku} {$item->size} {$item->color}.");
+                        }
+
                         $variant->decrement('stock_quantity', $item->quantity);
-                        $variant->refresh();
+                        // ⚡ Bolt: decrement updates in-memory attributes, no refresh needed.
 
                         InventoryMovement::query()->create([
                             'product_variant_id' => $variant->id,
