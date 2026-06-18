@@ -5,3 +5,7 @@
 ## 2026-05-16 - Avoid N+1 on HasMany inverse relation without eager load
 **Learning:** In standard Laravel conventions, accessing a parent relation (`$product->category`) in a loop of children fetched via a `hasMany` query (`$category->products()`) causes an N+1 issue because the child doesn't inherently know its parent without a specific `with('category')` or manually setting it. Eager loading `with('category')` works but issues a redundant query (e.g. `select * from categories where id in (1)`).
 **Action:** Instead of `->with('category')`, when querying children from a loaded parent model instance, iterate through the collection and manually inject the parent model using `$children->each->setRelation('parentRelationName', $parentModel);`. This achieves 0 additional queries compared to 1 (eager load) or N (lazy load).
+
+## 2026-05-16 - Avoid N+1 when acquiring database locks in a loop
+**Learning:** When locking multiple rows in a transaction (like product variants for an order), running `lockForUpdate()->first()` inside a loop for each item causes an N+1 query issue, severely impacting database performance and potentially causing lock contention.
+**Action:** Always batch the lock query. Pluck the required IDs outside the loop, run a single `whereIn('id', $ids)->lockForUpdate()->get()->keyBy('id')` query to lock all needed rows at once, and perform an O(1) memory lookup inside the loop using `$keyedCollection->get()`.
