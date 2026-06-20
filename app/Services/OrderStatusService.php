@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\InventoryMovement;
 use App\Models\Order;
+use App\Models\ProductVariant;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -25,10 +26,19 @@ class OrderStatusService
                 $confirming = $nextStatus === 'confirmed' && $order->confirmed_at === null;
 
                 if ($confirming) {
-                    $items = $order->items()->with('variant')->get();
+                    $items = $order->items()->get();
+                    $variantIds = $items->pluck('product_variant_id')->unique();
+
+                    // ⚡ Bolt: Prevent N+1 queries when acquiring DB locks.
+                    // Lock all required variants with a single query.
+                    $variants = ProductVariant::query()
+                        ->whereIn('id', $variantIds)
+                        ->lockForUpdate()
+                        ->get()
+                        ->keyBy('id');
 
                     foreach ($items as $item) {
-                        $variant = $item->variant()->lockForUpdate()->first();
+                        $variant = $variants->get($item->product_variant_id);
 
                         if (! $variant || $variant->stock_quantity < $item->quantity) {
                             throw new RuntimeException("Not enough stock for {$item->sku} {$item->size} {$item->color}.");
@@ -36,9 +46,9 @@ class OrderStatusService
                     }
 
                     foreach ($items as $item) {
-                        $variant = $item->variant()->lockForUpdate()->firstOrFail();
+                        $variant = $variants->get($item->product_variant_id);
                         $variant->decrement('stock_quantity', $item->quantity);
-                        $variant->refresh();
+                        // ⚡ Bolt: No refresh() needed since modern Laravel decrement() updates in-memory attributes.
 
                         InventoryMovement::query()->create([
                             'product_variant_id' => $variant->id,
