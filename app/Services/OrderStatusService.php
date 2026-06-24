@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\InventoryMovement;
 use App\Models\Order;
+use App\Models\ProductVariant;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -27,8 +29,12 @@ class OrderStatusService
                 if ($confirming) {
                     $items = $order->items()->with('variant')->get();
 
+                    // ⚡ Bolt: Prevent N+1 queries by batch locking variants and avoiding redundant refresh()
+                    $variantIds = $items->pluck('product_variant_id')->filter();
+                    $variants = ProductVariant::query()->whereIn('id', $variantIds)->lockForUpdate()->get()->keyBy('id');
+
                     foreach ($items as $item) {
-                        $variant = $item->variant()->lockForUpdate()->first();
+                        $variant = $variants->get($item->product_variant_id);
 
                         if (! $variant || $variant->stock_quantity < $item->quantity) {
                             throw new RuntimeException("Not enough stock for {$item->sku} {$item->size} {$item->color}.");
@@ -36,9 +42,11 @@ class OrderStatusService
                     }
 
                     foreach ($items as $item) {
-                        $variant = $item->variant()->lockForUpdate()->firstOrFail();
+                        $variant = $variants->get($item->product_variant_id);
+                        if (! $variant) {
+                            throw new ModelNotFoundException;
+                        }
                         $variant->decrement('stock_quantity', $item->quantity);
-                        $variant->refresh();
 
                         InventoryMovement::query()->create([
                             'product_variant_id' => $variant->id,
